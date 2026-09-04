@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Label It — Data Classification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FFFFFF; --ink:#535353; --mid:#A8A8A8; --hair:#E6E6E6;
+    --px:"Press Start 2P", ui-monospace, monospace;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+    --real:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --det:70px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{background:var(--paper);color:var(--ink);font-family:var(--px);padding:26px 0;min-height:100vh;
+       display:flex;flex-direction:column;justify-content:center;overflow-x:hidden}
+  .wrap{width:100%;max-width:1020px;margin:0 auto;padding:0 18px}
+
+  .hud{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:10px;letter-spacing:.16em}
+  .hud .right{display:flex;gap:14px;color:var(--mid);font-size:9px;letter-spacing:.18em}
+  .hud .right b{color:var(--ink);font-weight:400}
+
+  .grid{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}
+
+  /* ---------- the document: the only real object ---------- */
+  .doc{background:var(--paper);border:1px solid #DADCE0;border-radius:8px;
+       box-shadow:0 1px 3px rgba(0,0,0,.13),0 8px 24px rgba(0,0,0,.07);
+       font-family:var(--real);overflow:hidden}
+  .doc .bar{background:#F6F8FA;border-bottom:1px solid #E8EAED;display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:12px;color:#5F6368}
+  .doc .fx{width:26px;height:26px;border-radius:4px;background:#E8EAED;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;color:#70757A}
+  .doc .fn{font-weight:600;color:#202124;font-size:13px;word-break:break-all}
+  .doc .in{padding:16px 17px 18px}
+  .doc .what{font-size:15px;line-height:1.6;color:#202124;margin:0 0 14px}
+  .doc .who{font-size:13.5px;line-height:1.55;color:#5F6368;border-top:1px solid #EDEFF2;padding-top:12px}
+  .doc .who span{color:#202124;font-weight:500}
+
+  /* ---------- the six labels, laid out as the two axes ---------- */
+  .axis{display:flex;align-items:center;gap:9px;margin:14px 0 8px;font-size:8px;letter-spacing:.2em;color:var(--mid)}
+  .axis .ln{flex:1;height:1px;background:var(--hair)}
+  .labels{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .lb{
+    font-family:var(--px);font-size:9px;letter-spacing:.06em;line-height:1.75;
+    padding:13px 9px;cursor:pointer;border:2px solid var(--ink);
+    background:var(--paper);color:var(--ink);border-radius:0;text-align:center;
+  }
+  .lb .sub{display:block;color:var(--mid);font-size:8px;margin-top:4px}
+  .lb:hover{background:var(--ink);color:var(--paper)}
+  .lb:hover .sub{color:var(--paper)}
+  .lb:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .lb:disabled{cursor:default;opacity:.55}
+  .lb:disabled:hover{background:var(--paper);color:var(--ink)}
+  .lb:disabled:hover .sub{color:var(--mid)}
+  .lb.span2{grid-column:span 1}
+  .lb.right{background:var(--ink);color:var(--paper);opacity:1}
+  .lb.right .sub{color:var(--paper)}
+  .lb.picked{outline:3px solid var(--ink);outline-offset:2px;opacity:1}
+  .lb .mark{display:block;font-size:7px;letter-spacing:.16em;margin-top:7px;padding-top:6px;border-top:1px solid currentColor}
+
+  .legend{font-family:var(--mono);font-size:12px;color:var(--mid);margin-top:11px;text-align:center}
+  .ctl{width:100%;font-family:var(--px);font-size:10px;letter-spacing:.12em;padding:15px 12px;margin-top:12px;
+       cursor:pointer;border:2px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:0}
+  .ctl:hover{background:var(--paper);color:var(--ink)}
+  .ctl:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+
+  /* ---------- why panel ---------- */
+  .why{border:3px solid var(--ink);padding:15px 16px;align-self:start}
+  .why .head{font-size:9px;letter-spacing:.2em;color:var(--mid);margin-bottom:13px;line-height:1.7}
+  .vbar{
+    margin:-15px -16px 14px;padding:12px 10px;text-align:center;
+    font-size:10px;letter-spacing:.2em;border-bottom:3px solid var(--ink);
+  }
+  .vbar.ok{background:var(--ink);color:var(--paper)}
+  .vbar.no{background:var(--paper);color:var(--ink);text-shadow:1px 0 0 currentColor}
+  .lname{font-size:10px;letter-spacing:.12em;color:var(--ink);margin-bottom:13px;line-height:1.7;text-shadow:1px 0 0 currentColor}
+  .why ul{margin:0;padding:0;list-style:none}
+  .why li{font-family:var(--mono);font-size:12.5px;line-height:1.6;color:#3D3D3D;padding:9px 0;border-top:1px solid var(--hair)}
+  .why li:first-child{border-top:none;padding-top:0}
+  .why li b{font-weight:700;color:#2B2B2B}
+
+  /* ---------- the strip ---------- */
+  .page{width:100%;padding:6px 0 0}
+  .page>.grid{width:100%;margin-top:0}
+  .strip{position:relative;width:100%;height:126px;margin-top:6px;overflow:hidden;flex:none}
+  .dust{position:absolute;left:0;right:-220px;bottom:0;height:8px;pointer-events:none;
+    background-repeat:repeat-x;opacity:.55;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='260' height='8'%3E%3Crect x='22' y='3' width='7' height='2' fill='%23A8A8A8'/%3E%3Crect x='96' y='5' width='3' height='2' fill='%23A8A8A8'/%3E%3Crect x='158' y='2' width='10' height='2' fill='%23A8A8A8'/%3E%3Crect x='214' y='5' width='4' height='2' fill='%23A8A8A8'/%3E%3C/svg%3E")}
+  .stripInner{position:relative;max-width:1020px;margin:0 auto;padding:0 18px;height:100%}
+  .tw{position:absolute;bottom:14px;width:26px;left:0;opacity:0;pointer-events:none}
+  .tw svg{display:block;width:100%;height:auto;image-rendering:pixelated}
+  .tw.roll{animation:roll 7s linear}
+  @keyframes roll{
+    0%{opacity:0;transform:translateX(var(--from)) rotate(0deg)}
+    6%{opacity:1}
+    90%{opacity:1}
+    100%{opacity:0;transform:translateX(var(--to)) rotate(-1440deg)}
+  }
+  .ground{position:absolute;left:0;right:-220px;bottom:8px;height:20px;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='20'%3E%3Crect width='200' height='2' fill='%23535353'/%3E%3Crect x='16' y='8' width='9' height='2' fill='%23A8A8A8'/%3E%3Crect x='44' y='13' width='3' height='2' fill='%23A8A8A8'/%3E%3Crect x='71' y='7' width='13' height='2' fill='%23A8A8A8'/%3E%3Crect x='103' y='12' width='5' height='2' fill='%23A8A8A8'/%3E%3Crect x='127' y='9' width='3' height='2' fill='%23A8A8A8'/%3E%3Crect x='149' y='14' width='8' height='2' fill='%23A8A8A8'/%3E%3Crect x='178' y='8' width='6' height='2' fill='%23A8A8A8'/%3E%3C/svg%3E");
+    background-repeat:repeat-x}
+  .det{position:absolute;bottom:24px;left:18px;width:var(--det);transform-origin:50% 100%;cursor:pointer}
+  .det svg{display:block;width:100%;height:auto;image-rendering:pixelated}
+  .det:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .det.ouch{animation:ouch .5s steps(4)}
+  @keyframes ouch{0%{scale:1 1;rotate:0}25%{scale:1.16 .8}50%{scale:.92 1.06;rotate:-9deg}75%{scale:1.03 .98;rotate:7deg}100%{scale:1 1;rotate:0}}
+
+  .talk{position:absolute;bottom:34px;left:calc(38px + var(--det));right:18px;max-width:560px;
+    border:3px solid var(--ink);background:var(--paper);padding:11px 13px;
+    font-size:10px;line-height:1.9;min-height:44px;display:flex;align-items:center}
+  .talk::before{content:"";position:absolute;left:-11px;top:16px;width:8px;height:12px;background:var(--paper);clip-path:polygon(0 50%,100% 0,100% 100%)}
+  .talk::after{content:"";position:absolute;left:-14px;top:13px;width:12px;height:18px;background:var(--ink);z-index:-1;clip-path:polygon(0 50%,100% 0,100% 100%)}
+  .talk b{font-weight:400;text-shadow:1px 0 0 currentColor;letter-spacing:.04em}
+
+  .recap h2{font-size:12px;letter-spacing:.1em;margin:0 0 14px}
+  .recap dl{margin:0;font-family:var(--mono);font-size:13px;line-height:1.55}
+  .recap dt{font-family:var(--px);font-size:9px;letter-spacing:.1em;color:var(--ink);margin-top:13px}
+  .recap dd{margin:5px 0 0;color:#3D3D3D}
+  .hidden{display:none}
+
+  @media (min-width:900px){
+    :root{--det:80px}
+    .grid{grid-template-columns:minmax(0,1fr) 330px;gap:20px}
+    .hud{font-size:12px}
+    .hud .right{font-size:10px}
+    .lb{font-size:10px;padding:15px 10px}
+    .why li{font-size:13px}
+    .strip{height:134px}
+    .talk{font-size:11px;padding:13px 16px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="wrap hud">
+  <span>LABEL IT</span>
+  <span class="right">
+    <span>ITEM <b id="pos">01</b>/<b id="tot">00</b></span>
+    <span>RIGHT <b id="right">00</b></span>
+  </span>
+</div>
+
+<div class="page"><div class="wrap grid">
+  <div>
+    <div class="doc" id="doc"></div>
+    <div id="pick">
+      <div class="axis"><span class="ln"></span><span>LEAST SENSITIVE</span><span class="ln"></span></div>
+      <div class="labels" id="labels"></div>
+      <div class="axis"><span class="ln"></span><span>MOST SENSITIVE</span><span class="ln"></span></div>
+    </div>
+    <div id="after"></div>
+  </div>
+  <div class="why" id="why"></div>
+</div></div>
+
+<div class="strip" id="strip">
+  <div class="ground"></div>
+  <div class="dust"></div>
+  <div class="tw" id="tw"></div>
+  <div class="stripInner">
+    <div class="det" id="det"></div>
+    <div class="talk"><span id="line">&nbsp;</span></div>
+  </div>
+</div>
+
+<script>
+const POSES = {
+  stand:["................................","...........##########...........","..........############..........","..........############..........","..........++++++++++++..........",".....######################.....","......++++++++++++++++++++......","...........++++++++++...........","...........##ww##ww##...........","...........##########...........","...........####++####...........","............########............","..............####..............","...###....#####++#####..........","..#ooo#..#####++++#####.........",".#ohooo######++++++#####........",".#ooooo##w###++++++###w##.......",".#ooooo##w###++++++###w##.......","..#ooo###w###++++++###w##.......","...###++#w###++++++###w##.......",".......##w###++++++###w##.......",".......++++++++ww++++++++.......",".......##w############w##.......",".......########ww########.......",".......########ww########.......","........#######..#######........","..........####....####..........","..........####....####..........","..........####....####..........",".........######..######.........",".........++++++..++++++.........","................................"],
+  walk1:["................................","...........##########...........","..........############..........","..........############..........","..........++++++++++++..........",".....######################.....","......++++++++++++++++++++......","...........++++++++++...........","...........##ww##ww##...........","...........##########...........","...........####++####...........","............########............","..............####..............","...###....#####++#####..........","..#ooo#..#####++++#####.........",".#ohooo######++++++#####........",".#ooooo##w###++++++###w##.......",".#ooooo##w###++++++###w##.......","..#ooo###w###++++++###w##.......","...###++#w###++++++###w##.......",".......##w###++++++###w##.......",".......++++++++ww++++++++.......",".......##w############w##.......",".......########ww########.......",".......########ww########.......","........#######..#######........","..........####....####..........","..........####....####..........",".........####......####.........","........######.....######.......","........++++++..................","................................"],
+  walk2:["................................","...........##########...........","..........############..........","..........############..........","..........++++++++++++..........",".....######################.....","......++++++++++++++++++++......","...........++++++++++...........","...........##ww##ww##...........","...........##########...........","...........####++####...........","............########............","..............####..............","...###....#####++#####..........","..#ooo#..#####++++#####.........",".#ohooo######++++++#####........",".#ooooo##w###++++++###w##.......",".#ooooo##w###++++++###w##.......","..#ooo###w###++++++###w##.......","...###++#w###++++++###w##.......",".......##w###++++++###w##.......",".......++++++++ww++++++++.......",".......##w############w##.......",".......########ww########.......",".......########ww########.......","........#######..#######........","..........####....####..........","..........####....####..........","...........####..####...........","..........############..........","................++++++..........","................................"],
+  found:["................................","...........##########...........","..........############..........","...###....############..........","..#ooo#...++++++++++++..........",".#ooooo####################.....",".#ooooo#++++++++++++++++++......",".#ooooo#...++++++++++...........","..#ooo#....##ww##ww##...........","...###.....##########...........","....++.....####++####...........",".....++.....########............","......++......####..............",".......++.#####++#####..........",".........#####++++#####.........","........#####++++++#####........",".......##w###++++++###w##.......",".......##w###++++++###w##.......",".......##w###++++++###w##.......",".......##w###++++++###w##.......",".......##w###++++++###w##.......",".......++++++++ww++++++++.......",".......##w############w##.......",".......########ww########.......",".......########ww########.......","........#######..#######........","..........####....####..........","..........####....####..........","..........####....####..........",".........######..######.........",".........++++++..++++++.........","................................"],
+  ouch:["..........############..........","..........############..........","..........++++++++++++..........",".....######################.....","......++++++++++++++++++++......","................................",".......##..............##.......","...........++++++++++...........","...........##ww##ww##...........","...........##########...........","...........####++####...........","............########............","..............####..............","...###....#####++#####..........","..#ooo#..#####++++#####.........",".#ohooo######++++++#####........",".#ooooo##w###++++++###w##.......",".#ooooo##w###++++++###w##.......","..#ooo###w###++++++###w##.......","...###++#w###++++++###w##.......",".......##w###++++++###w##.......",".......++++++++ww++++++++.......",".......##w############w##.......",".......########ww########.......",".......########ww########.......","........#######..#######........","..........####....####..........","..........####....####..........","..........####....####..........",".........######..######.........",".........++++++..++++++.........","................................"]
+};
+const TUMBLE=["............", "...####.....", "..#....##...", ".#...#...#..", "#...#.....#.", "#..#...#..#.", "#.....#....#", ".#..#....#..", ".#.....#..#.", "..##....#...", "....####....", "............"];
+const SPAL={"#":"#535353","+":"#A8A8A8"};
+function tumbleArt(){
+  const r=[];
+  for(let y=0;y<TUMBLE.length;y++)for(let x=0;x<TUMBLE[y].length;x++)
+    if(TUMBLE[y][x]==="#") r.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="#535353"/>`);
+  return `<svg viewBox="0 0 12 12" aria-hidden="true">${r.join("")}</svg>`;
+}
+function sprite(n){
+  const g=POSES[n],r=[];
+  for(let y=0;y<g.length;y++)for(let x=0;x<g[y].length;x++){
+    const c=SPAL[g[y][x]];
+    if(c) r.push(`<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>`);
+  }
+  return `<svg viewBox="0 0 32 32" aria-hidden="true">${r.join("")}</svg>`;
+}
+
+/* ================= the six labels =================
+   level: how bad if it leaks.  aud: who it is for.
+   Public and Private have no internal/external split — that is the point. */
+const LABELS={
+  PUBLIC:   {t:"PUBLIC",   sub:"anyone",            lvl:0,aud:"any",
+             rule:"Anyone worldwide.",use:"Marketing material, published work.",prot:"None."},
+  PRIVATE:  {t:"PRIVATE",  sub:"everyday work",     lvl:1,aud:"any",
+             rule:"Everyday non-sensitive work.",use:"Drafts, notes, routine email.",prot:"Label only. Trusted outsiders allowed."},
+  CONF_INT: {t:"CONFIDENTIAL",sub:"internal",       lvl:2,aud:"int",
+             rule:"All dentsu employees.",use:"Project plans, HR, financial reports.",prot:"Permission travels with the file. No external access."},
+  CONF_EXT: {t:"CONFIDENTIAL",sub:"external",       lvl:2,aud:"ext",
+             rule:"Shareable with named partners or clients.",use:"Client proposals, contracts.",prot:"Tracking, access control, confidentiality label. The partner may share it internally."},
+  SEC_INT:  {t:"SECRET",   sub:"internal",          lvl:3,aud:"int",
+             rule:"The most sensitive company data.",use:"Salaries, M&amp;A plans, security incidents.",prot:"Blocks external sharing. No forwarding."},
+  SEC_EXT:  {t:"SECRET",   sub:"external",          lvl:3,aud:"ext",
+             rule:"Named external people only.",use:"High-risk agreements under strict NDA.",prot:"Extreme lockdown. No forwarding, all access tracked. Externals in shared spaces cannot open it."}
+};
+const ORDER=["PUBLIC","PRIVATE","CONF_INT","CONF_EXT","SEC_INT","SEC_EXT"];
+
+/* ================= things to classify ================= */
+const ITEMS=[
+ {fn:"Autumn_Campaign_Release.docx",fx:"DOC",
+  what:"The press release for a campaign that goes live on Monday. Already signed off by the client and by legal.",
+  who:"Going to: <span>the press, and the dentsu website</span>",
+  ans:"PUBLIC",
+  why:["<b>Cleared for the world</b> &mdash; sign-off from client and legal is what turns something public.",
+       "<b>No protection needed</b> &mdash; that is the whole point of a release.",
+       "<b>Careful though</b> &mdash; it is only Public after sign-off. The draft yesterday was not."]},
+
+ {fn:"standup_notes_thurs.txt",fx:"TXT",
+  what:"Your own scratch notes from this morning&rsquo;s standup. Half sentences, a couple of names, nothing decided.",
+  who:"Going to: <span>nobody yet, it is just in your OneDrive</span>",
+  ans:"PRIVATE",
+  why:["<b>Routine and low harm</b> &mdash; this is the everyday tier most of your files live in.",
+       "<b>Label only</b> &mdash; no lockdown, no tracking.",
+       "<b>Not Confidential</b> &mdash; reaching for a higher label on everything makes the higher labels meaningless."]},
+
+ {fn:"Retainer_Proposal_v4.pdf",fx:"PDF",
+  what:"A proposal with scope, timings and rate card, going to a client you already work with.",
+  who:"Going to: <span>three named people at the client</span>",
+  ans:"CONF_EXT",
+  why:["<b>Sensitive and it leaves the building</b> &mdash; that combination is what External means.",
+       "<b>Protection travels with it</b> &mdash; tracking and access control, not just a label.",
+       "<b>The client can share it internally</b> &mdash; that is allowed here, and it is the difference from Secret External."]},
+
+ {fn:"APAC_Q3_Financials.xlsx",fx:"XLS",
+  what:"Regional revenue and margin by account for the last quarter.",
+  who:"Going to: <span>the APAC leadership channel</span>",
+  ans:"CONF_INT",
+  why:["<b>Everyone inside, nobody outside</b> &mdash; the classic Confidential Internal shape.",
+       "<b>Permission travels with the file</b> &mdash; forwarding it does not strip the protection.",
+       "<b>Not Secret</b> &mdash; sensitive, but it is normal reporting rather than something that would cause serious harm."]},
+
+ {fn:"2027_Salary_Bands.xlsx",fx:"XLS",
+  what:"Salary bands and individual figures for the whole department.",
+  who:"Going to: <span>two people in HR</span>",
+  ans:"SEC_INT",
+  why:["<b>Named in the standard</b> &mdash; salaries sit in Secret alongside M&amp;A plans and security incidents.",
+       "<b>No forwarding</b> &mdash; external sharing is blocked outright, not just discouraged.",
+       "<b>Small audience is not the test</b> &mdash; the harm if it leaked is."]},
+
+ {fn:"Project_Vega_TermSheet.pdf",fx:"PDF",
+  what:"Draft terms for acquiring a smaller agency. Not announced. Under a signed NDA.",
+  who:"Going to: <span>one partner at the external law firm</span>",
+  ans:"SEC_EXT",
+  why:["<b>Highest harm, and it must go outside</b> &mdash; that is the only reason Secret External exists.",
+       "<b>Strict NDA is the entry condition</b> &mdash; not a nice-to-have.",
+       "<b>Eyes-only</b> &mdash; no forwarding, every open is logged, and externals in shared spaces still cannot read it."]},
+
+ {fn:"Incident_Report_Outage.docx",fx:"DOC",
+  what:"The write-up of last week&rsquo;s outage, including which control failed and for how long.",
+  who:"Going to: <span>the security team</span>",
+  ans:"SEC_INT",
+  why:["<b>Security incidents are named as Secret</b> &mdash; it maps out exactly where we were weak.",
+       "<b>Internal only</b> &mdash; no external party needs the failure detail.",
+       "<b>A tempting mistake</b> &mdash; people file these as Confidential because they feel routine to write."]},
+
+ {fn:"Blog_AI_Trends_DRAFT.docx",fx:"DOC",
+  what:"A blog post about industry trends. Written, not reviewed, not approved, not published.",
+  who:"Going to: <span>a colleague for a first read</span>",
+  ans:"PRIVATE",
+  why:["<b>Unpublished is not Public</b> &mdash; the same words will be Public next week, after sign-off.",
+       "<b>Classification follows status, not subject</b> &mdash; nothing in it is sensitive, but it is not cleared.",
+       "<b>Trusted outsiders allowed</b> &mdash; a freelance editor could see it at this tier."]},
+
+ {fn:"Media_Partner_MSA.pdf",fx:"PDF",
+  what:"The signed master services agreement with a media partner. Commercial terms, standard confidentiality clause.",
+  who:"Going to: <span>the partner&rsquo;s account team</span>",
+  ans:"CONF_EXT",
+  why:["<b>Contracts are named under Confidential External</b> &mdash; sensitive, and shared with a known party.",
+       "<b>Not Secret External</b> &mdash; that tier is for high-risk agreements under strict NDA, not ordinary commercial ones.",
+       "<b>The partner can circulate it internally</b> &mdash; which they need to, to deliver the work."]},
+
+ {fn:"Brand_Guidelines_2026.pdf",fx:"PDF",
+  what:"The logo, colour and tone-of-voice guide. Already downloadable from the public site.",
+  who:"Going to: <span>a freelancer starting Monday</span>",
+  ans:"PUBLIC",
+  why:["<b>Already published</b> &mdash; once it is on the open web, a higher label protects nothing.",
+       "<b>Over-labelling has a cost</b> &mdash; it slows people down and teaches them to ignore labels.",
+       "<b>The freelancer is irrelevant here</b> &mdash; who is asking does not change what the file already is."]},
+
+ {fn:"Headcount_Plan_FY27.xlsx",fx:"XLS",
+  what:"Planned roles and team sizes for next year. No names, no salaries. Not announced.",
+  who:"Going to: <span>department heads</span>",
+  ans:"CONF_INT",
+  why:["<b>HR planning sits in Confidential Internal</b> &mdash; sensitive, internal, but not Secret.",
+       "<b>No salaries in it</b> &mdash; add individual pay and it moves up to Secret.",
+       "<b>Watch the line</b> &mdash; the same spreadsheet with a salary column is a different classification."]},
+
+ {fn:"Meeting_Confirm.msg",fx:"MSG",
+  what:"An email confirming Thursday at 14:00 and a room number.",
+  who:"Going to: <span>four colleagues</span>",
+  ans:"PRIVATE",
+  why:["<b>Routine email is the Private tier</b> &mdash; this is where most of your day lives.",
+       "<b>Not Public</b> &mdash; no reason to publish it, and it was never cleared.",
+       "<b>Not Confidential</b> &mdash; if everything is Confidential, nothing is."]}
+];
+
+/* ================= state ================= */
+const $=id=>document.getElementById(id);
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+let i=0, right=0, answered=false, pose="", poking=false, backLine="", backPose="stand";
+
+function setSpeech(h,p){ $("line").innerHTML=h; if(p){pose=p;$("det").innerHTML=sprite(p);} }
+function say(h,p){ if(poking){ backLine=h; if(p) backPose=p; return; } setSpeech(h,p); }
+function hud(){
+  $("pos").textContent=String(i+1).padStart(2,"0");
+  $("tot").textContent=String(ITEMS.length).padStart(2,"0");
+  $("right").textContent=String(right).padStart(2,"0");
+}
+
+/* how close was the guess? same level, or one step away, counts as close */
+function nearness(a,b){
+  if(a===b) return "right";
+  const A=LABELS[a],B=LABELS[b];
+  if(A.lvl===B.lvl) return "close";
+  if(Math.abs(A.lvl-B.lvl)===1) return "close";
+  return "off";
+}
+
+function cheatsheet(){
+  $("why").innerHTML=`<div class="head">THE SIX LABELS</div><ul>`+
+    ORDER.map(k=>`<li><b>${LABELS[k].t}${LABELS[k].aud==="any"?"":" &middot; "+LABELS[k].sub}</b> &mdash; ${LABELS[k].rule}</li>`).join("")+
+    `</ul>`;
+}
+function showWhy(it,verdict){
+  const L=LABELS[it.ans];
+  const bar = verdict==="right" ? '<div class="vbar ok">CORRECT</div>'
+            : verdict==="close" ? '<div class="vbar no">CLOSE &mdash; ONE TIER OFF</div>'
+            :                     '<div class="vbar no">NOT THIS ONE</div>';
+  $("why").innerHTML=bar+`
+    <div class="lname">The answer: ${L.t}${L.aud==="any"?"":" &middot; "+L.sub}</div>
+    <ul>${it.why.map(w=>`<li>${w}</li>`).join("")}
+        <li><b>Protection</b> &mdash; ${L.prot}</li></ul>`;
+}
+
+function buttons(){
+  $("labels").innerHTML=ORDER.map(k=>{
+    const L=LABELS[k];
+    return `<button class="lb" data-k="${k}">${L.t}<span class="sub">${L.sub}</span></button>`;
+  }).join("");
+  $("labels").querySelectorAll(".lb").forEach(b=>b.addEventListener("click",()=>choose(b.dataset.k)));
+}
+
+function render(){
+  answered=false;
+  $("after").innerHTML="";
+  const it=ITEMS[i];
+  hud(); cheatsheet(); buttons();
+  $("doc").innerHTML=`
+    <div class="bar"><span class="fx">${it.fx}</span><span class="fn">${it.fn}</span></div>
+    <div class="in">
+      <p class="what">${it.what}</p>
+      <div class="who">${it.who}</div>
+    </div>`;
+  say("What does this one need? <b>How bad if it leaked, and who needs it.</b>","stand");
+}
+
+function choose(k){
+  if(answered) return;
+  answered=true;
+  const it=ITEMS[i], verdict=nearness(k,it.ans);
+
+  $("labels").querySelectorAll(".lb").forEach(b=>{
+    b.disabled=true;
+    if(b.dataset.k===it.ans){
+      b.classList.add("right");
+      b.insertAdjacentHTML("beforeend",'<span class="mark">CORRECT</span>');
+    }
+    if(b.dataset.k===k && k!==it.ans){
+      b.classList.add("picked");
+      b.insertAdjacentHTML("beforeend",'<span class="mark">YOUR PICK</span>');
+    }
+  });
+
+  if(verdict==="right"){
+    right++;
+    say("<b>That is the one.</b>","found");
+  }else if(verdict==="close"){
+    say("<b>Close.</b> Right instinct, wrong tier &mdash; have a read of the difference.","stand");
+  }else{
+    say("<b>Not that one.</b> No harm done, this is the bit everyone finds fiddly.","ouch");
+    if(!reduce){ const d=$("det"); d.classList.remove("ouch"); void d.offsetWidth; d.classList.add("ouch");
+                 setTimeout(()=>d.classList.remove("ouch"),700); }
+  }
+  hud();
+  showWhy(it, verdict);
+  $("after").innerHTML=`<button class="ctl" id="btnNext">${i<ITEMS.length-1?"NEXT ITEM":"FINISH"}</button>`;
+  $("btnNext").addEventListener("click",next);
+  $("btnNext").focus({preventScroll:true});
+}
+
+function next(){ if(i<ITEMS.length-1){ i++; render(); } else finish(); }
+
+function finish(){
+  $("pick").classList.add("hidden");
+  $("doc").innerHTML=`<div class="in"><div class="recap">
+    <h2>THE SIX, IN ORDER</h2>
+    <dl>${ORDER.map(k=>{const L=LABELS[k];
+      return `<dt>${L.t}${L.aud==="any"?"":" &middot; "+L.sub}</dt><dd>${L.rule} ${L.use}</dd>`;}).join("")}</dl>
+  </div></div>`;
+  $("why").innerHTML=`<div class="head">WHEN YOU ARE STUCK</div><ul>
+    <li><b>Two questions, in order</b> &mdash; how bad if this leaked, then who actually needs it.</li>
+    <li><b>Public means cleared</b> &mdash; not just harmless. Unreviewed drafts are Private.</li>
+    <li><b>External is not about the reader</b> &mdash; it is about whether the file is allowed to leave.</li>
+    <li><b>Do not label everything high</b> &mdash; if it is all Confidential, the label stops meaning anything.</li>
+    <li><b>Still unsure?</b> Pick the higher one and ask. Nobody minds that question.</li>
+  </ul>`;
+  $("after").innerHTML=`<button class="ctl" id="btnAgain">RUN IT AGAIN</button>`;
+  $("btnAgain").addEventListener("click",()=>{ i=0; right=0; $("pick").classList.remove("hidden"); render(); });
+  say(`<b>${right} of ${ITEMS.length}.</b> Nice work! When in doubt, label it higher and ask.`,"found");
+}
+
+/* poke him */
+const OUCH=["<b>Auch!</b>","<b>Ow.</b> That is my hat.","<b>Oi!</b> I am reading."];
+$("det").setAttribute("role","button");
+$("det").setAttribute("aria-label","Poke the detective");
+$("det").tabIndex=0;
+function poke(){
+  if(poking) return;
+  poking=true; backLine=$("line").innerHTML; backPose=pose;
+  setSpeech(OUCH[Math.floor(Math.random()*OUCH.length)],"ouch");
+  const d=$("det"); d.classList.remove("ouch"); void d.offsetWidth;
+  if(!reduce) d.classList.add("ouch");
+  setTimeout(()=>{ d.classList.remove("ouch"); poking=false; setSpeech(backLine,backPose); }, reduce?800:1100);
+}
+$("det").addEventListener("click",poke);
+$("det").addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();poke();} });
+
+/* tumbleweed — rolls through when the desk has been quiet a while */
+let idleT=null;
+$("tw").innerHTML=tumbleArt();
+function rollTumble(){
+  if(reduce) return;
+  const tw=$("tw"), w=$("strip").clientWidth;
+  tw.style.setProperty("--from",(w+40)+"px");
+  tw.style.setProperty("--to","-70px");
+  tw.classList.remove("roll"); void tw.offsetWidth; tw.classList.add("roll");
+  armTumble();
+}
+function armTumble(){ clearTimeout(idleT); if(!reduce) idleT=setTimeout(rollTumble, 14000); }
+$("tw").addEventListener("animationend",()=>$("tw").classList.remove("roll"));
+addEventListener("click",armTumble);
+addEventListener("keydown",armTumble);
+armTumble();
+
+setSpeech("&nbsp;","stand");
+render();
+</script>
+</body>
+</html>
